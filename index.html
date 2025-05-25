@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quest for Words</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1e40af">
+  <style>
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    .pulse { animation: pulse 1s ease infinite; }
+    .npc { background: url('https://via.placeholder.com/100?text=NPC') no-repeat center; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <audio id="successSound" src="/beep-01a.mp3"></audio>
+  <audio id="errorSound" src="/beep-02.mp3"></audio>
+  <script src="https://cdn.jsdelivr.net/npm/react@17.0.2/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@17.0.2/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/babel-standalone@6.26.0/babel.min.js"></script>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+    const challenges = [
+      { id: 1, skill: "listening", level: "A1", question: "Listen: 'Hello, how are you?'", answer: "I'm fine", audio: "/hello-01.mp3", type: "multiple", options: ["I'm fine", "Goodbye", "Yes"] },
+      { id: 2, skill: "writing", level: "A1", question: "Write: My name is ___", answer: "My name is", type: "text" },
+      { id: 3, skill: "speaking", level: "A1", question: "Say: 'I like to read.'", answer: "I like to read", type: "speech" },
+      { id: 4, skill: "reading", level: "A1", question: "Read: 'The cat is on the mat.' What is on the mat?", answer: "Cat", type: "multiple", options: ["Cat", "Dog", "Bird"] },
+      { id: 5, skill: "listening", level: "B1", question: "Listen: 'Where are you going?'", answer: "To the park", audio: "/where-01.mp3", type: "multiple", options: ["To the park", "To the moon", "To Narnia"] },
+      { id: 6, skill: "writing", level: "B2", question: "Write a sentence using 'challenge'.", answer: "challenge", type: "text" },
+    ];
+
+    const App = () => {
+      const [level, setLevel] = useState(localStorage.getItem("level") || "A1");
+      const [score, setScore] = useState(parseInt(localStorage.getItem("score")) || 0);
+      const [currentChallenge, setCurrentChallenge] = useState(null);
+      const [userAnswer, setUserAnswer] = useState("");
+      const [message, setMessage] = useState("Welcome to LinguaLand! Save the land by collecting Language Crystals!");
+
+      useEffect(() => {
+        localStorage.setItem("level", level);
+        localStorage.setItem("score", score);
+        loadChallenge();
+      }, [level]);
+
+      const loadChallenge = () => {
+        const challengesForLevel = challenges.filter((c) => c.level === level);
+        const randomChallenge = challengesForLevel[Math.floor(Math.random() * challengesForLevel.length)];
+        setCurrentChallenge(randomChallenge);
+        setUserAnswer("");
+      };
+
+      const checkAnswer = () => {
+        let isCorrect = false;
+        if (currentChallenge.type === "multiple") {
+          isCorrect = userAnswer === currentChallenge.answer;
+        } else if (currentChallenge.type === "text") {
+          isCorrect = userAnswer.toLowerCase().includes(currentChallenge.answer.toLowerCase());
+        } else if (currentChallenge.type === "speech") {
+          isCorrect = userAnswer.toLowerCase() === currentChallenge.answer.toLowerCase();
+        }
+
+        if (isCorrect) {
+          setScore(score + 10);
+          setMessage("Great job! +10 Crystals!");
+          const successSound = document.getElementById("successSound");
+          if (successSound) successSound.play().catch(() => console.log("Success sound unavailable"));
+          if (score + 10 >= levels.indexOf(level) * 50 + 50) {
+            const nextLevelIndex = levels.indexOf(level) + 1;
+            if (nextLevelIndex < levels.length) {
+              setLevel(levels[nextLevelIndex]);
+              setMessage(`Welcome to ${levels[nextLevelIndex]}! Face the Guardian!`);
+            } else {
+              setMessage("Victory! You've saved LinguaLand!");
+            }
+          }
+          loadChallenge();
+        } else {
+          setMessage("Oops! Try again!");
+          const errorSound = document.getElementById("errorSound");
+          if (errorSound) errorSound.play().catch(() => console.log("Error sound unavailable"));
+        }
+      };
+
+      const handleSpeech = () => {
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = "en-US";
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          setUserAnswer(transcript);
+          checkAnswer();
+        };
+        recognition.start();
+      };
+
+      const playAudio = () => {
+        const audio = new Audio(currentChallenge.audio);
+        audio.play().catch(() => console.log("Audio playback unavailable"));
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-blue-900 to-purple-900 text-white flex flex-col items-center p-4">
+          <h1 className="text-4xl font-bold mb-4 pulse">Quest for Words</h1>
+          <p className="text-lg mb-4 text-center">{message}</p>
+          <div className="bg-blue-800 p-6 rounded-lg shadow-lg w-full max-w-md">
+            <p className="text-xl">Level: {level}</p>
+            <p className="text-xl">Crystals: {score}</p>
+            {currentChallenge && (
+              <div>
+                <p className="text-2xl mt-4">{currentChallenge.question}</p>
+                {currentChallenge.skill === "listening" && (
+                  <button
+                    onClick={playAudio}
+                    className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 mt-2 rounded"
+                  >
+                    Play Audio
+                  </button>
+                )}
+                {currentChallenge.type === "multiple" && (
+                  <div className="mt-2">
+                    {currentChallenge.options.map((option, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setUserAnswer(option)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white py-1 px-2 m-1 rounded"
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {currentChallenge.type === "text" && (
+                  <input
+                    type="text"
+                    value={userAnswer}
+                    onChange={(e) => setUserAnswer(e.target.value)}
+                    placeholder="Type your answer"
+                    className="w-full p-2 mt-2 text-black rounded"
+                  />
+                )}
+                {currentChallenge.type === "speech" && (
+                  <button
+                    onClick={handleSpeech}
+                    className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 mt-2 rounded"
+                  >
+                    Speak Now
+                  </button>
+                )}
+                {(currentChallenge.type === "text" || currentChallenge.type === "speech") && (
+                  <button
+                    onClick={checkAnswer}
+                    className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 mt-4 rounded"
+                  >
+                    Submit
+                  </button>
+                )}
+              </div>
+            )}
+            <button
+              onClick={loadChallenge}
+              className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 mt-4 rounded"
+            >
+              Next Challenge
+            </button>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/service-worker.js").catch(err => console.error("Service Worker registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>
